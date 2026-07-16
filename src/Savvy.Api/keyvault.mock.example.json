@@ -1,0 +1,7 @@
+{
+  "//": "TEMPLATE for the mock Azure Key Vault. Copy to 'keyvault.mock.json' (gitignored) and fill in real values. Secret names use Key Vault's '--' separator, which the app translates to ':' (so 'ConnectionStrings--SavvyDb' => ConnectionStrings:SavvyDb). In Azure, these same secret names live in the real Key Vault.",
+  "ConnectionStrings--SavvyDb": "Server=localhost;Database=SavvyDb;User Id=savvy_app;Password=<your-savvy_app-password>;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=True",
+  "Jwt--SigningKey": "<a-random-secret-at-least-32-chars-long>",
+  "Notifications--Discord--WebhookUrl": "https://discord.com/api/webhooks/<id>/<token>",
+  "Notifications--Teams--WebhookUrl": "https://<tenant>.webhook.office.com/webhookb2/<...>"
+}

@@ -1,0 +1,340 @@
+{
+  "info": {
+    "name": "Savvy API",
+    "_postman_id": "b1e7c4a2-5f3d-4c9a-9b21-savvy0000001",
+    "description": "Savvy Ltd backend API.\n\nUsage:\n1. Run the API locally (default http://localhost:5064). Adjust the `baseUrl` collection variable if needed.\n2. Run the three requests in **Auth** first — each stores its JWT in a collection variable (adminToken / managerToken / clinicianToken).\n3. Run **Shifts > List shifts** — it auto-captures an Open, clinician-assigned shift into `assignedShiftId`.\n4. Run **Timesheets > Submit timesheet** (uses a unique reference each run), then **Payment Runs > Create payment run**.\n\nRequests capture ids (`timesheetPublicId`, `paymentRunPublicId`, `createdShiftId`) into collection variables so the GET/PUT requests just work.\n\nNote: submitting a timesheet completes the shift. If **Submit timesheet** returns 409, all seeded assigned shifts are already timesheeted — create/assign a fresh shift or reset the database.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5064" },
+    { "key": "practiceId", "value": "1" },
+    { "key": "adminToken", "value": "" },
+    { "key": "managerToken", "value": "" },
+    { "key": "clinicianToken", "value": "" },
+    { "key": "assignedShiftId", "value": "" },
+    { "key": "createdShiftId", "value": "" },
+    { "key": "timesheetPublicId", "value": "" },
+    { "key": "paymentRunPublicId", "value": "" },
+    { "key": "tsBusinessRef", "value": "" },
+    { "key": "prBusinessRef", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('adminToken', json.accessToken);",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('has token', () => pm.expect(json.accessToken).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@savvy.test\",\n  \"password\": \"Admin#12345\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "auth", "login" ]
+            }
+          }
+        },
+        {
+          "name": "Login - Manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('managerToken', json.accessToken);",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manager@savvy.test\",\n  \"password\": \"Manager#12345\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "auth", "login" ]
+            }
+          }
+        },
+        {
+          "name": "Login - Clinician",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('clinicianToken', json.accessToken);",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"clinician@savvy.test\",\n  \"password\": \"Clinician#12345\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "auth", "login" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health/live", "host": [ "{{baseUrl}}" ], "path": [ "health", "live" ] }
+          }
+        },
+        {
+          "name": "Readiness (incl. database)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health/ready", "host": [ "{{baseUrl}}" ], "path": [ "health", "ready" ] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shifts",
+      "item": [
+        {
+          "name": "List shifts (practice)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "var shifts = pm.response.json();",
+                  "var open = shifts.find(function (s) { return s.status === 'Open' && s.clinicianId != null; });",
+                  "if (open) { pm.collectionVariables.set('assignedShiftId', open.id); console.log('assignedShiftId =', open.id); }",
+                  "else { console.log('No Open clinician-assigned shift found.'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{managerToken}}", "type": "string" } ] },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/practices/{{practiceId}}/shifts",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "practices", "{{practiceId}}", "shifts" ]
+            }
+          }
+        },
+        {
+          "name": "Create shift",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('createdShiftId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{managerToken}}", "type": "string" } ] },
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-08-01\",\n  \"startUtc\": \"2026-08-01T09:00:00Z\",\n  \"endUtc\": \"2026-08-01T17:00:00Z\",\n  \"hourlyRate\": 28.50,\n  \"role\": \"Nurse\",\n  \"location\": \"Ward B\",\n  \"clinicianId\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/practices/{{practiceId}}/shifts",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "practices", "{{practiceId}}", "shifts" ]
+            }
+          }
+        },
+        {
+          "name": "Update shift",
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{managerToken}}", "type": "string" } ] },
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-08-01\",\n  \"startUtc\": \"2026-08-01T10:00:00Z\",\n  \"endUtc\": \"2026-08-01T18:00:00Z\",\n  \"hourlyRate\": 30.00,\n  \"role\": \"Nurse\",\n  \"location\": \"Ward C\",\n  \"clinicianId\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shifts/{{createdShiftId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "shifts", "{{createdShiftId}}" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Timesheets",
+      "item": [
+        {
+          "name": "Submit timesheet",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('tsBusinessRef', 'TS-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 or 200', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('timesheetPublicId', json.publicId);",
+                  "console.log('timesheetPublicId =', json.publicId, 'hours =', json.hours);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{clinicianToken}}", "type": "string" } ] },
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workedStartUtc\": \"2026-07-14T08:00:00Z\",\n  \"workedEndUtc\": \"2026-07-14T16:00:00Z\",\n  \"unpaidBreakMinutes\": 30,\n  \"notes\": \"Seen 12 patients\",\n  \"businessReference\": \"{{tsBusinessRef}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/shifts/{{assignedShiftId}}/timesheets",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "shifts", "{{assignedShiftId}}", "timesheets" ]
+            }
+          }
+        },
+        {
+          "name": "Get timesheet",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{clinicianToken}}", "type": "string" } ] },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/timesheets/{{timesheetPublicId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "timesheets", "{{timesheetPublicId}}" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Runs",
+      "item": [
+        {
+          "name": "Create payment run",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('prBusinessRef', 'PR-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 or 200', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('paymentRunPublicId', json.publicId);",
+                  "console.log('paymentRunPublicId =', json.publicId, 'net =', json.netTotal);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{managerToken}}", "type": "string" } ] },
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodStartUtc\": \"2026-07-01T00:00:00Z\",\n  \"periodEndUtc\": \"2026-07-31T23:59:59Z\",\n  \"feePercentage\": 0.15,\n  \"fixedFeePerTimesheet\": 5.00,\n  \"currency\": \"GBP\",\n  \"businessReference\": \"{{prBusinessRef}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/practices/{{practiceId}}/payment-runs",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "practices", "{{practiceId}}", "payment-runs" ]
+            }
+          }
+        },
+        {
+          "name": "Get payment run",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{managerToken}}", "type": "string" } ] },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/payment-runs/{{paymentRunPublicId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "payment-runs", "{{paymentRunPublicId}}" ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+
+# Rider / VS
+.vs/
+.idea/
+*.suo
+
+# Local secrets / environment-specific config (never commit)
+appsettings.Local.json
+secrets.json
+# Mock Azure Key Vault: the real file holds secrets and is ignored; the
+# *.example.json template is committed.
+keyvault.mock.json
+!keyvault.mock.example.json
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+
+# EF Core / SQL local artifacts
+*.mdf
+*.ldf
