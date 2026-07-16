@@ -37,7 +37,7 @@ public class ShiftsEndpointsTests : IntegrationTestBase
     [Fact]
     public async Task CheckRoles()
     {
-        var roles = await Client("Roles",)
+        var roles = await Client("Roles")
             .GetFromJsonAsync<List<string>>($"/api/roles");
         Assert.NotNull(roles);
         Assert.Equal(3, roles!.Count); // total roles
