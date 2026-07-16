@@ -35,8 +35,8 @@ jobs:
           dotnet test Savvy.sln -c Release --no-build --verbosity normal
           --logger "trx" --results-directory TestResults
 
-      # Sum pass/fail/total across every test project's .trx result file. Runs even if the tests
-      # failed so we can report the numbers.
+      # Sum pass/fail/total across every test project's .trx, and collect the names of any failed
+      # tests. Runs even if the tests failed so we can report the numbers.
       - name: Summarise test results
         id: summary
         if: always()
@@ -48,9 +48,20 @@ jobs:
             p=$(grep -o 'passed="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*'); passed=$((passed + ${p:-0}))
             x=$(grep -o 'failed="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*'); failed=$((failed + ${x:-0}))
           done
+
+          # Names of failed tests (Class.Method — project namespace trimmed for readability).
+          names=$(grep -h -o '<UnitTestResult[^>]*outcome="Failed"[^>]*>' TestResults/*.trx 2>/dev/null \
+                  | grep -o 'testName="[^"]*"' | sed 's/testName="//; s/"$//' \
+                  | sed -E 's/^Savvy\.(Unit|Integration)Tests\.//' | sort -u)
+
           echo "total=$total"   >> "$GITHUB_OUTPUT"
           echo "passed=$passed" >> "$GITHUB_OUTPUT"
           echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          {
+            echo "failed_names<<__EOF__"
+            echo "$names"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
           echo "Test totals: $passed passed, $failed failed, $total total"
 
       # Post the run outcome + test details to Discord. Runs on success and failure.
@@ -69,6 +80,7 @@ jobs:
           PASSED: ${{ steps.summary.outputs.passed }}
           FAILED: ${{ steps.summary.outputs.failed }}
           TOTAL: ${{ steps.summary.outputs.total }}
+          FAILED_NAMES: ${{ steps.summary.outputs.failed_names }}
         run: |
           if [ -z "$WEBHOOK" ]; then
             echo "DISCORD_GITHUB secret not available — skipping notification."
@@ -85,6 +97,16 @@ jobs:
           [ "${FAILED:-0}" != "0" ] && tests="$tests, ${FAILED} failed"
           tests="$tests / ${TOTAL:-0} total"
 
+          # Build a bulleted, capped list of failed tests (Discord field values max ~1024 chars).
+          failed_list=""
+          clean=$(printf '%s\n' "$FAILED_NAMES" | sed '/^[[:space:]]*$/d')
+          if [ "${FAILED:-0}" != "0" ] && [ -n "$clean" ]; then
+            count=$(printf '%s\n' "$clean" | wc -l)
+            failed_list=$(printf '%s\n' "$clean" | head -15 | sed 's/^/• /')
+            [ "$count" -gt 15 ] && failed_list="$failed_list"$'\n'"…and $((count - 15)) more"
+            failed_list=${failed_list:0:1000}
+          fi
+
           payload=$(jq -n \
             --arg title  "$emoji CI ${STATUS} — ${REPO}" \
             --arg url    "$RUN_URL" \
@@ -94,15 +116,19 @@ jobs:
             --arg event  "$EVENT" \
             --arg actor  "$ACTOR" \
             --arg tests  "$tests" \
+            --arg failed_list "$failed_list" \
             '{username:"GitHub Actions", embeds:[{
                title:$title, url:$url, color:$color,
-               fields:[
-                 {name:"Branch", value:$branch, inline:true},
-                 {name:"Commit", value:$commit, inline:true},
-                 {name:"Event",  value:$event,  inline:true},
-                 {name:"Tests",  value:$tests,  inline:false},
-                 {name:"By",     value:$actor,  inline:true}
-               ],
+               fields:(
+                 [
+                   {name:"Branch", value:$branch, inline:true},
+                   {name:"Commit", value:$commit, inline:true},
+                   {name:"Event",  value:$event,  inline:true},
+                   {name:"Tests",  value:$tests,  inline:false},
+                   {name:"By",     value:$actor,  inline:true}
+                 ]
+                 + (if $failed_list == "" then [] else [{name:"Failed tests", value:$failed_list, inline:false}] end)
+               ),
                timestamp:(now|todate)
              }]}')
 
