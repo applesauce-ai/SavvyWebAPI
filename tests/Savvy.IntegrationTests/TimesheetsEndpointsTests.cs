@@ -111,6 +111,49 @@ public class TimesheetsEndpointsTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Timesheet_over_9_hours_raises_a_warning()
+    {
+        var (shiftId, clinicianId) = ReadyShift();
+        var client = Client("Clinician", uid: clinicianId, practiceId: PracticeId);
+
+        // 08:00–18:00 with no break = 10.00 hours (> 9h threshold).
+        var req = new SubmitTimesheetRequest
+        {
+            WorkedStartUtc = new DateTime(2026, 7, 14, 8, 0, 0, DateTimeKind.Utc),
+            WorkedEndUtc = new DateTime(2026, 7, 14, 18, 0, 0, DateTimeKind.Utc),
+            UnpaidBreakMinutes = 0,
+            BusinessReference = "TS-LONG"
+        };
+
+        (await client.PostAsJsonAsync($"/api/shifts/{shiftId}/timesheets", req)).EnsureSuccessStatusCode();
+
+        var warning = Assert.Single(Factory.Notifications.Warnings);
+        Assert.Equal(10.00m, warning.Hours);
+        Assert.Equal(9m, warning.ThresholdHours);
+    }
+
+    [Fact]
+    public async Task Timesheet_of_exactly_9_hours_does_not_warn()
+    {
+        var (shiftId, clinicianId) = ReadyShift();
+        var client = Client("Clinician", uid: clinicianId, practiceId: PracticeId);
+
+        // 08:00–17:00 with no break = 9.00 hours exactly (not > 9h).
+        var req = new SubmitTimesheetRequest
+        {
+            WorkedStartUtc = new DateTime(2026, 7, 14, 8, 0, 0, DateTimeKind.Utc),
+            WorkedEndUtc = new DateTime(2026, 7, 14, 17, 0, 0, DateTimeKind.Utc),
+            UnpaidBreakMinutes = 0,
+            BusinessReference = "TS-9H"
+        };
+
+        (await client.PostAsJsonAsync($"/api/shifts/{shiftId}/timesheets", req)).EnsureSuccessStatusCode();
+
+        Assert.Empty(Factory.Notifications.Warnings);
+        Assert.Single(Factory.Notifications.Submitted); // normal notification still fired
+    }
+
+    [Fact]
     public async Task Get_timesheet_respects_ownership_and_practice_scope()
     {
         var (shiftId, clinicianId) = ReadyShift();

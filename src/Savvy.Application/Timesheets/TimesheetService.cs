@@ -8,6 +8,10 @@ namespace Savvy.Application.Timesheets;
 
 public class TimesheetService : ITimesheetService
 {
+    /// <summary>Timesheets with more worked hours than this raise a Discord warning.
+    /// A business rule kept here as a constant; could be moved to configuration if it needs tuning.</summary>
+    public const decimal LongTimesheetThresholdHours = 9m;
+
     private readonly ISavvyDbContext _db;
     private readonly ICurrentUserContext _currentUser;
     private readonly INotificationService _notifications;
@@ -84,12 +88,21 @@ public class TimesheetService : ITimesheetService
             throw new ConflictException("This shift has already been timesheeted.");
         }
 
-        // Best-effort notification for a genuinely new submission (not idempotent replays).
+        // Best-effort notifications for a genuinely new submission (not idempotent replays).
         var hours = Domain.Calculations.WorkHours.ComputeHours(
             timesheet.WorkedStartUtc, timesheet.WorkedEndUtc, timesheet.UnpaidBreakMinutes);
+
         await _notifications.TimesheetSubmittedAsync(
             new TimesheetSubmittedEvent(timesheet.PublicId, timesheet.ShiftId, timesheet.ClinicianId, hours, timesheet.BusinessReference),
             ct);
+
+        if (hours > LongTimesheetThresholdHours)
+        {
+            await _notifications.TimesheetHoursWarningAsync(
+                new TimesheetHoursWarningEvent(timesheet.PublicId, timesheet.ShiftId, timesheet.ClinicianId,
+                    hours, LongTimesheetThresholdHours, timesheet.BusinessReference),
+                ct);
+        }
 
         return new TimesheetSubmissionResult(TimesheetResponse.From(timesheet), Created: true);
     }

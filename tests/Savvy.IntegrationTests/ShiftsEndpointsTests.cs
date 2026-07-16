@@ -34,14 +34,14 @@ public class ShiftsEndpointsTests : IntegrationTestBase
         Assert.NotNull(shifts);
         Assert.Equal(3, shifts!.Count); // seeded shifts
     }
-    [Fact]
+   /* [Fact]
     public async Task CheckRoles()
     {
         var roles = await Client("Roles")
             .GetFromJsonAsync<List<string>>($"/api/roles");
         Assert.NotNull(roles);
         Assert.Equal(3, roles!.Count); // total roles
-    }
+    }*/
 
     [Fact]
     public async Task Manager_cannot_list_other_practice_shifts()

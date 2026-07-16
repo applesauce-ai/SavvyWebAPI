@@ -2,7 +2,7 @@
   "info": {
     "name": "Savvy API",
     "_postman_id": "b1e7c4a2-5f3d-4c9a-9b21-savvy0000001",
-    "description": "Savvy Ltd backend API.\n\nUsage:\n1. Run the API locally (default http://localhost:5064). Adjust the `baseUrl` collection variable if needed.\n2. Run the three requests in **Auth** first — each stores its JWT in a collection variable (adminToken / managerToken / clinicianToken).\n3. Run **Shifts > List shifts** — it auto-captures an Open, clinician-assigned shift into `assignedShiftId`.\n4. Run **Timesheets > Submit timesheet** (uses a unique reference each run), then **Payment Runs > Create payment run**.\n\nRequests capture ids (`timesheetPublicId`, `paymentRunPublicId`, `createdShiftId`) into collection variables so the GET/PUT requests just work.\n\nNote: submitting a timesheet completes the shift. If **Submit timesheet** returns 409, all seeded assigned shifts are already timesheeted — create/assign a fresh shift or reset the database.",
+    "description": "Savvy Ltd backend API.\n\nUsage:\n1. Run the API locally (default http://localhost:5064). Adjust the `baseUrl` collection variable if needed.\n2. Run the three requests in **Auth** first — each stores its JWT in a collection variable (adminToken / managerToken / clinicianToken).\n3. Run **Shifts > List shifts** — it auto-captures an Open, clinician-assigned shift into `assignedShiftId`.\n4. Run **Timesheets > Submit timesheet** (uses a unique reference each run), then **Payment Runs > Create payment run**.\n\nRequests capture ids (`timesheetPublicId`, `paymentRunPublicId`, `createdShiftId`) into collection variables so the GET/PUT requests just work.\n\n5. **Admin: Practices & Clinicians** (Admin token) — create a practice, fetch it, and create a clinician in it. Names/emails are generated uniquely each run so it's re-runnable; the created ids chain into the follow-up requests.\n\nNote: submitting a timesheet completes the shift. If **Submit timesheet** returns 409, all seeded assigned shifts are already timesheeted — create/assign a fresh shift or reset the database.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,7 +16,11 @@
     { "key": "timesheetPublicId", "value": "" },
     { "key": "paymentRunPublicId", "value": "" },
     { "key": "tsBusinessRef", "value": "" },
-    { "key": "prBusinessRef", "value": "" }
+    { "key": "prBusinessRef", "value": "" },
+    { "key": "practiceName", "value": "" },
+    { "key": "newPracticeId", "value": "" },
+    { "key": "clinicianEmail", "value": "" },
+    { "key": "clinicianPublicId", "value": "" }
   ],
   "item": [
     {
@@ -331,6 +335,106 @@
               "raw": "{{baseUrl}}/api/payment-runs/{{paymentRunPublicId}}",
               "host": [ "{{baseUrl}}" ],
               "path": [ "api", "payment-runs", "{{paymentRunPublicId}}" ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin: Practices & Clinicians",
+      "item": [
+        {
+          "name": "Create practice",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('practiceName', 'Clinic ' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('newPracticeId', json.id);",
+                  "console.log('newPracticeId =', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{adminToken}}", "type": "string" } ] },
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{practiceName}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/practices",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "practices" ]
+            }
+          }
+        },
+        {
+          "name": "Get practice",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{adminToken}}", "type": "string" } ] },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/practices/{{newPracticeId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "practices", "{{newPracticeId}}" ]
+            }
+          }
+        },
+        {
+          "name": "Create clinician (in practice)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('clinicianEmail', 'clin-' + Date.now() + '@savvy.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('clinicianPublicId', json.publicId);",
+                  "console.log('clinicianPublicId =', json.publicId, 'role =', json.role);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{adminToken}}", "type": "string" } ] },
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{clinicianEmail}}\",\n  \"password\": \"Clinician#99999\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/practices/{{newPracticeId}}/clinicians",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "api", "practices", "{{newPracticeId}}", "clinicians" ]
             }
           }
         }

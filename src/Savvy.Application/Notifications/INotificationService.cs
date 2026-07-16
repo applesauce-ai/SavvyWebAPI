@@ -9,6 +9,9 @@ public interface INotificationService
 {
     Task TimesheetSubmittedAsync(TimesheetSubmittedEvent notification, CancellationToken ct = default);
     Task PaymentRunCreatedAsync(PaymentRunCreatedEvent notification, CancellationToken ct = default);
+
+    /// <summary>Raised when a submitted timesheet exceeds the long-timesheet threshold.</summary>
+    Task TimesheetHoursWarningAsync(TimesheetHoursWarningEvent notification, CancellationToken ct = default);
 }
 
 public sealed record TimesheetSubmittedEvent(
@@ -16,6 +19,14 @@ public sealed record TimesheetSubmittedEvent(
     int ShiftId,
     int ClinicianId,
     decimal Hours,
+    string BusinessReference);
+
+public sealed record TimesheetHoursWarningEvent(
+    Guid TimesheetPublicId,
+    int ShiftId,
+    int ClinicianId,
+    decimal Hours,
+    decimal ThresholdHours,
     string BusinessReference);
 
 public sealed record PaymentRunCreatedEvent(

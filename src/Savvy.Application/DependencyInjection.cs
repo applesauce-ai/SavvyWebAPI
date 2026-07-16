@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Savvy.Application.Auth;
+using Savvy.Application.Clinicians;
 using Savvy.Application.PaymentRuns;
+using Savvy.Application.Practices;
 using Savvy.Application.Shifts;
 using Savvy.Application.Timesheets;
 using Savvy.Domain.Entities;
@@ -16,6 +18,8 @@ public static class DependencyInjection
         services.AddScoped<IShiftService, ShiftService>();
         services.AddScoped<ITimesheetService, TimesheetService>();
         services.AddScoped<IPaymentRunService, PaymentRunService>();
+        services.AddScoped<IPracticeService, PracticeService>();
+        services.AddScoped<IClinicianService, ClinicianService>();
         services.AddScoped<IAuthService, AuthService>();
 
         // PBKDF2 password hasher (same algorithm used to seed users).

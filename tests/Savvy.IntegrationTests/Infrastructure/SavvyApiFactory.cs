@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Savvy.Application.Notifications;
 using Savvy.Infrastructure.Persistence;
 
 namespace Savvy.IntegrationTests.Infrastructure;
@@ -27,6 +28,9 @@ public sealed class SavvyApiFactory : WebApplicationFactory<Program>
 
     private readonly bool _useTestAuth;
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
+
+    /// <summary>Records the notifications raised during a test (webhook posting is replaced).</summary>
+    public RecordingNotificationService Notifications { get; } = new();
 
     public SavvyApiFactory(bool useTestAuth = true)
     {
@@ -51,6 +55,10 @@ public sealed class SavvyApiFactory : WebApplicationFactory<Program>
 
             _connection.Open();
             services.AddDbContext<SavvyDbContext>(options => options.UseSqlite(_connection));
+
+            // Capture notifications instead of posting to a webhook, so tests can assert on them.
+            services.RemoveAll<INotificationService>();
+            services.AddSingleton<INotificationService>(Notifications);
 
             if (_useTestAuth)
             {

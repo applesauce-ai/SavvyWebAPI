@@ -30,6 +30,24 @@ public sealed class NotificationService : INotificationService
         return _notifier.SendAsync(message, ct);
     }
 
+    public Task TimesheetHoursWarningAsync(TimesheetHoursWarningEvent n, CancellationToken ct = default)
+    {
+        var message = new WebhookMessage(
+            Title: "⚠️ Long timesheet submitted",
+            Summary: $"A timesheet of {n.Hours:0.00}h was logged for shift #{n.ShiftId} — over the {n.ThresholdHours:0.##}h threshold.",
+            Level: NotificationLevel.Warning,
+            Fields: new[]
+            {
+                new NotificationField("Hours", n.Hours.ToString("0.00")),
+                new NotificationField("Threshold", $"{n.ThresholdHours:0.##}h"),
+                new NotificationField("Clinician", $"#{n.ClinicianId}"),
+                new NotificationField("Reference", n.BusinessReference),
+                new NotificationField("Id", n.TimesheetPublicId.ToString())
+            });
+
+        return _notifier.SendAsync(message, ct);
+    }
+
     public Task PaymentRunCreatedAsync(PaymentRunCreatedEvent n, CancellationToken ct = default)
     {
         var period = $"{n.PeriodStartUtc:yyyy-MM-dd} → {n.PeriodEndUtc:yyyy-MM-dd}";
