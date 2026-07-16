@@ -1,39 +1,46 @@
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using Savvy.Api.Configuration;
 using Xunit;
 
 namespace Savvy.IntegrationTests;
 
 /// <summary>
-/// Verifies the mock Azure Key Vault wiring: in the Development environment the
-/// secret stored in keyvault.mock.json (secret name "ConnectionStrings--SavvyDb")
-/// is translated to the config key "ConnectionStrings:SavvyDb" and overrides the
-/// non-secret default in appsettings.json.
+/// Verifies the mock Key Vault provider in isolation (no app boot, no SQL Server, no real secret
+/// file — so it runs anywhere, including CI): a secret named "ConnectionStrings--SavvyDb" is
+/// translated to the config key "ConnectionStrings:SavvyDb" and, being added last, overrides an
+/// earlier configuration source.
 /// </summary>
-public class MockKeyVaultConfigurationTests : IClassFixture<WebApplicationFactory<Program>>
+public class MockKeyVaultConfigurationTests
 {
-    private readonly WebApplicationFactory<Program> _factory;
-
-    public MockKeyVaultConfigurationTests(WebApplicationFactory<Program> factory)
-    {
-        _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
-    }
-
     [Fact]
-    public void MockVault_supplies_and_overrides_the_SavvyDb_connection_string()
+    public void Mock_vault_loads_translates_double_dash_and_overrides_earlier_sources()
     {
-        // Force the host to build so configuration is composed.
-        using var scope = _factory.Services.CreateScope();
-        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var path = Path.Combine(Path.GetTempPath(), $"kv-mock-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path,
+            "{ \"ConnectionStrings--SavvyDb\": \"Server=localhost;Database=SavvyDb;User Id=savvy_app;Password=x\" }");
 
-        var connectionString = config.GetConnectionString("SavvyDb");
+        try
+        {
+            var config = new ConfigurationBuilder()
+                // Earlier (lower-precedence) source, as appsettings.json would be.
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:SavvyDb"] = "Trusted_Connection=True"
+                })
+                // The mock vault, added last (highest precedence) — mirrors Program.cs.
+                .Add(new MockKeyVaultConfigurationSource { FilePath = path, Optional = true })
+                .Build();
 
-        Assert.False(string.IsNullOrWhiteSpace(connectionString));
-        // The mock vault holds the SQL-auth string; the appsettings default is Windows auth.
-        // Seeing the SQL login proves the mock vault loaded AND won precedence.
-        Assert.Contains("User Id=savvy_app", connectionString);
-        Assert.DoesNotContain("Trusted_Connection=True", connectionString);
+            var connectionString = config.GetConnectionString("SavvyDb");
+
+            // "ConnectionStrings--SavvyDb" was translated to "ConnectionStrings:SavvyDb" ...
+            Assert.Contains("User Id=savvy_app", connectionString);
+            // ... and overrode the earlier in-memory (Windows-auth) default.
+            Assert.DoesNotContain("Trusted_Connection=True", connectionString);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }

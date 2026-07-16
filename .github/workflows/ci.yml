@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, staging, uat, prod ]
+  pull_request:
+    branches: [ main, staging, uat, prod ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET (from global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Savvy.sln
+
+      - name: Build
+        run: dotnet build Savvy.sln -c Release --no-restore
+
+      # Integration tests use an in-memory SQLite database and a test JWT key, so no SQL Server
+      # or secrets are required on the runner.
+      - name: Test
+        run: dotnet test Savvy.sln -c Release --no-build --verbosity normal
