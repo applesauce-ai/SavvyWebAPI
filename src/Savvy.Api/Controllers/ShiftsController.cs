@@ -29,5 +29,4 @@ public class ShiftsController : ControllerBase
     [HttpPut("api/shifts/{id:int}")]
     public async Task<ActionResult<ShiftResponse>> Update(int id, UpdateShiftRequest request, CancellationToken ct)
         => Ok(await _shifts.UpdateAsync(id, request, ct));
-    oops;
 }
