@@ -25,4 +25,5 @@ public class PracticesController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<PracticeResponse>> GetById(int id, CancellationToken ct)
         => Ok(await _practices.GetByIdAsync(id, ct));
+    oops;
 }
