@@ -83,6 +83,24 @@ public class ShiftsEndpointsTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Clinician_cannot_create_shift()
+    {
+        var request = new CreateShiftRequest
+        {
+            Date = new DateOnly(2026, 8, 1),
+            StartUtc = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc),
+            EndUtc = new DateTime(2026, 8, 1, 17, 0, 0, DateTimeKind.Utc),
+            HourlyRate = 28.50m,
+            Role = "Nurse",
+            Location = "Ward B"
+        };
+
+        var resp = await Client("Clinician", uid: 3, practiceId: PracticeId)
+            .PostAsJsonAsync($"/api/practices/{PracticeId}/shifts", request);
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task Create_with_end_before_start_is_400()
     {
         var request = new CreateShiftRequest
