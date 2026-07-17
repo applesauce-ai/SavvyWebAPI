@@ -7,6 +7,11 @@ A .NET 8 / ASP.NET Core Web API for managing practices, shifts, timesheets and p
 backed by SQL Server via EF Core, secured with JWT, and monitored by a Discord/Teams alerting
 watchdog.
 
+## 📹 Walkthrough
+
+▶️ **[Watch the video walkthrough](https://youtu.be/DhWK5EYLClU)** (~20 min)
+
+
 > Full design write-up and rationale: **[SOLUTION.md](SOLUTION.md)**. Original brief/plan:
 > **[PROJECT_PLAN.md](PROJECT_PLAN.md)**.
 
