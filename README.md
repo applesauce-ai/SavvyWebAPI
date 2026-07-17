@@ -19,7 +19,7 @@ watchdog.
 - **Secrets via vault** — Azure Key Vault in production, a faithful local mock in dev; nothing secret in source.
 - **Health endpoints** + a standalone **watchdog** that alerts to Discord (Teams-ready) on outage/recovery.
 - **Business-event notifications** (Discord/Teams) when timesheets and payment runs are logged.
-- **41 unit + integration tests**; CI on every push/PR.
+- **51 unit + integration tests**; CI on every push/PR.
 
 ## Tech stack
 
